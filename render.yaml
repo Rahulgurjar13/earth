@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: darukaa-earth-api
+    runtime: python
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
+databases:
+  - name: darukaa-earth-db
+    plan: free
+    databaseName: earth_keeper
+    postgresMajorVersion: "15"
+    ipAllowList: []
