@@ -54,13 +54,8 @@ const Register = () => {
         <div className="absolute -bottom-32 -left-20 w-80 h-80 rounded-full bg-white/5" />
         <div className="absolute top-1/3 right-1/4 w-40 h-40 rounded-full bg-white/[0.03]" />
 
-        <div className="relative z-10 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-            <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
-              <path d="M8 2C8 2 3.5 6.5 3.5 10C3.5 12.5 5.5 14.5 8 14.5C10.5 14.5 12.5 12.5 12.5 10C12.5 6.5 8 2 8 2Z" fill="white" />
-            </svg>
-          </div>
-          <span className="text-lg font-semibold tracking-tight text-white">Darukaa<span className="font-normal opacity-70">.earth</span></span>
+        <div className="relative z-10">
+          <span className="text-xl font-semibold tracking-tight text-white">Darukaa<span className="font-normal opacity-70">.earth</span></span>
         </div>
 
         <div className="relative z-10 max-w-lg">
