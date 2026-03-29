@@ -1,263 +1,278 @@
-# Darukaa.Earth — Geospatial Carbon & Biodiversity Analytics Platform
+# Darukaa.Earth
 
-A full-stack geospatial analytics dashboard for managing carbon sequestration and biodiversity conservation projects. Built as a hackathon challenge for the Darukaa.Earth Full-Stack Developer position.
+A geospatial analytics dashboard for tracking carbon sequestration and biodiversity conservation projects. Built with React, FastAPI, and PostGIS.
+
+**Live demo:** [earth-fawn-three.vercel.app](https://earth-fawn-three.vercel.app)
 
 ---
 
-## High-Level Architecture
+## Architecture Overview
+
+The app is split into two independently deployed pieces:
 
 ```
-┌──────────────────────────────────────────┐     ┌──────────────────────────────────────┐
-│           Frontend (React / Vite)         │     │       Backend (FastAPI / Python)      │
-│                                          │     │                                      │
-│  React Router ─► PrivateRoute Guard      │     │  JWT Auth (bcrypt + python-jose)      │
-│  Zustand ─► Auth state (localStorage)    │ ──► │  REST API (/api prefix)               │
-│  React Query ─► Server data caching      │     │  SQLAlchemy + GeoAlchemy2             │
-│  MapLibre GL JS ─► Interactive map       │     │  PostGIS polygon storage               │
-│  Chart.js ─► Data visualization          │     │  Computed site analytics               │
-│                                          │     │                                      │
-│  Deployed on: Vercel                     │     │  Deployed on: Render.com              │
-└──────────────────────────────────────────┘     └──────────────────────────────────────┘
-                                                          │
-                                                 ┌────────▼────────┐
-                                                 │   PostgreSQL    │
-                                                 │   + PostGIS     │
-                                                 │  (Render / Docker)│
-                                                 └─────────────────┘
+┌─────────────────────────────────┐        ┌─────────────────────────────────┐
+│        Frontend (Vercel)        │        │      Backend (Render.com)       │
+│                                 │        │                                 │
+│  React 18 + Vite                │  HTTP  │  FastAPI + Uvicorn              │
+│  MapLibre GL JS (map rendering) │ ─────► │  SQLAlchemy + GeoAlchemy2       │
+│  Chart.js (data viz)            │  JSON  │  JWT auth (bcrypt + jose)       │
+│  Zustand (auth state)           │        │  PostGIS polygon storage        │
+│  React Query (server state)     │        │                                 │
+└─────────────────────────────────┘        └───────────────┬─────────────────┘
+                                                           │
+                                                  ┌────────▼────────┐
+                                                  │   PostgreSQL    │
+                                                  │   + PostGIS     │
+                                                  └─────────────────┘
 ```
 
-### Technology Choices & Trade-offs
+The frontend is a single-page app — all routes are handled client-side via React Router, with a `PrivateRoute` guard that redirects unauthenticated users to `/login`. API calls go through a single Axios instance (`src/services/api.ts`) that auto-attaches the JWT token from localStorage and handles 401 redirects.
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| **Mapping** | MapLibre GL JS | Open-source fork of Mapbox GL JS with identical API. Uses free OpenFreeMap tiles — no API key, no account, no credit card required. Same rendering engine, same layer/style spec. |
-| **Charting** | Chart.js + react-chartjs-2 | Hackathon allows "Highcharts or Chart.js"; Chart.js is MIT-licensed with zero cost. |
-| **State Management** | Zustand (auth) + React Query (server) | Zustand is minimal for client-only state; React Query handles caching, refetch, and loading states for API data. |
-| **Map Drawing** | Custom draw tool (native) | Lightweight click-to-draw polygon tool built on MapLibre events. Exports standard GeoJSON for the backend. |
-| **Geospatial DB** | PostgreSQL + PostGIS (GeoAlchemy2) | Industry-standard geospatial extensions; stores real `POLYGON` geometries with SRID 4326. |
-| **Auth** | JWT + bcrypt | Stateless tokens suitable for SPA; 24h expiry with `JWT_SECRET` env var. |
-| **Mock Data** | Server-generated analytics derived from stored base scores | Avoids needing a separate time-series store for the demo; realistic trends computed from `carbon_score`, `biodiversity_score`. |
-| **CI/CD** | GitHub Actions → Vercel (frontend) + Render (backend) | Free tier platforms; automatic deployment on push to `main`. |
+The backend exposes a REST API under the `/api` prefix. Every endpoint (except register/login) requires a valid JWT. The database uses PostGIS to store site boundaries as real `POLYGON` geometries, which means we can do proper spatial queries down the road.
 
-### Key Design Trade-offs
+### Why these technologies?
 
-1. **MapLibre GL JS vs Mapbox GL JS**: MapLibre is the open-source fork of Mapbox GL JS, sharing the same rendering engine, style spec, and API. We chose MapLibre because:
-   - Mapbox GL JS v2+ requires a paid API token even for development. MapLibre is 100% free with no API key.
-   - Free tile providers (OpenFreeMap) mean zero infrastructure cost.
-   - The code is a drop-in replacement — migrating to Mapbox GL JS only requires swapping the import and adding a token.
+I went with **MapLibre GL JS** instead of Mapbox because Mapbox v2+ requires a paid API token just to load the map — even in development. MapLibre is the open-source fork with the exact same rendering engine and style spec, so the code is essentially identical. If we ever need Mapbox-specific features, it's a one-line import swap plus adding a token.
 
-2. **Chart.js vs Highcharts**: The spec allows either. Chart.js is MIT-licensed (free for commercial use), lightweight (8KB gzipped for the modules used), and has excellent React integration via `react-chartjs-2`. Highcharts requires a paid license for commercial use.
+For charts, I picked **Chart.js** over Highcharts. Both are allowed by the spec, but Chart.js is MIT-licensed and has solid React bindings through `react-chartjs-2`. It handles the line charts, bar charts, and radar charts we need without any licensing concerns.
 
-3. **Zustand + React Query vs Redux**: Separating client-only state (auth) from server state (projects, sites) avoids the bolerplate of Redux. React Query gives automatic caching, background refetch, and loading/error states for free.
+State management is split: **Zustand** handles auth state (token + user in localStorage) and **React Query** handles all server data (projects, sites, analytics). This keeps things simple — no Redux boilerplate, and React Query gives us caching, background refetch, and loading states out of the box.
 
-4. **Custom Draw Tool vs @mapbox/mapbox-gl-draw**: A lightweight native draw tool (~40 lines of logic) avoids the 200KB+ `@mapbox/mapbox-gl-draw` dependency and provides a simpler UX with an explicit "Finish & Save" button instead of complex mode toggling.
+The polygon draw tool on the map is custom-built (~40 lines of event handlers on MapLibre) rather than using `@mapbox/mapbox-gl-draw`. That library is 200KB+ and has a complex mode system. Ours is just click-to-add-points with a "Finish & Save" button that appears after 3 points.
 
-5. **Server-computed Analytics vs Time-series DB**: The `/sites/{id}/analytics` endpoint derives 12-month trends from stored base scores. This avoids needing InfluxDB/TimescaleDB for the demo while still showing realistic visualizations. In production, this would be replaced with actual time-series data.
+For the analytics endpoint, I derive 12-month trends from the stored base scores rather than setting up a time-series database. In production you'd swap this out for real historical data, but for the demo it generates realistic-looking charts without extra infrastructure.
+
+---
 
 ## Database Schema
 
-### `users`
+Three tables, all managed by SQLAlchemy with auto-migration on startup:
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `INT` (PK) | Auto-increment primary key |
-| `name` | `VARCHAR` | User's full name |
-| `email` | `VARCHAR` (unique) | Login email |
-| `role` | `VARCHAR` | Default: `Member` |
-| `hashed_password` | `VARCHAR` | bcrypt hash |
+### users
 
-### `projects`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INT (PK) | auto-increment |
+| name | VARCHAR | full name |
+| email | VARCHAR (unique) | login email |
+| role | VARCHAR | defaults to "Member" |
+| hashed_password | VARCHAR | bcrypt hash |
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `INT` (PK) | Auto-increment |
-| `name` | `VARCHAR` | Project name |
-| `type` | `VARCHAR` | `Carbon` / `Biodiversity` / `Mixed` |
-| `status` | `VARCHAR` | `Active` / `Draft` / `Inactive` |
-| `description` | `TEXT` | Project description |
-| `country` | `VARCHAR` | Country name |
-| `carbon` | `FLOAT` | Target carbon (tCO2) |
-| `verified` | `BOOLEAN` | Verification status |
-| `start_date` | `TIMESTAMP` | Project start date |
-| `last_updated` | `TIMESTAMP` | Last modified |
-| `owner_id` | `INT` (FK) | → `users.id` |
+### projects
 
-### `sites`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INT (PK) | auto-increment |
+| name | VARCHAR | project name |
+| type | VARCHAR | Carbon / Biodiversity / Mixed |
+| status | VARCHAR | Active / Draft / Inactive |
+| description | TEXT | free-text description |
+| country | VARCHAR | country name |
+| carbon | FLOAT | target carbon in tCO2 |
+| verified | BOOLEAN | verification flag |
+| owner_id | INT (FK → users.id) | who created it |
+| start_date | TIMESTAMP | when the project started |
+| last_updated | TIMESTAMP | auto-updated |
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `INT` (PK) | Auto-increment |
-| `name` | `VARCHAR` | Site name |
-| `project_id` | `INT` (FK) | → `projects.id` |
-| `area` | `FLOAT` | Hectares |
-| `polygon` | `Geography('POLYGON', 4326)` | PostGIS geometry |
-| `type` | `VARCHAR` | `Carbon` / `Biodiversity` / `Mixed` |
-| `status` | `VARCHAR` | `Active` / `Monitoring` / `Pending` |
-| `region` | `VARCHAR` | Geographic region |
-| `country` | `VARCHAR` | Country name |
-| `carbon_score` | `FLOAT` | Carbon sequestration score |
-| `biodiversity_score` | `FLOAT` | Biodiversity index |
-| `ndvi` | `FLOAT` | Normalized Difference Vegetation Index |
-| `added_date` | `TIMESTAMP` | Date site was added |
-| `last_updated` | `TIMESTAMP` | Last modified |
+### sites
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INT (PK) | auto-increment |
+| name | VARCHAR | site name |
+| project_id | INT (FK → projects.id) | parent project |
+| area | FLOAT | area in hectares |
+| polygon | Geography(POLYGON, 4326) | PostGIS geometry |
+| type | VARCHAR | Carbon / Biodiversity / Mixed |
+| status | VARCHAR | Active / Monitoring / Pending |
+| region | VARCHAR | geographic region |
+| country | VARCHAR | country name |
+| carbon_score | FLOAT | carbon sequestration metric |
+| biodiversity_score | FLOAT | biodiversity index (0-100) |
+| ndvi | FLOAT | vegetation index (0-1) |
+| added_date | TIMESTAMP | when added |
+| last_updated | TIMESTAMP | auto-updated |
+
+The `polygon` column uses PostGIS's `Geography` type with SRID 4326 (WGS 84). GeoJSON polygons from the frontend are stored via `ST_GeomFromGeoJSON()` and retrieved via `ST_AsGeoJSON()`.
 
 ---
 
-## Setup & Run Locally
+## Running Locally
 
-### Prerequisites
+### What you need
 
-- **Node.js** ≥ 18
-- **Python** ≥ 3.11
-- **Docker** (for PostgreSQL + PostGIS)
-- **Mapbox** account ([mapbox.com](https://www.mapbox.com)) — free tier works
+- Node.js 18+
+- Python 3.11+
+- PostgreSQL with PostGIS (via Docker or Homebrew)
 
-### 1. Start PostgreSQL + PostGIS
+### 1. Start the database
 
+**With Docker:**
 ```bash
 cd backend
-docker-compose up -d
+docker compose up -d
 ```
 
-Default credentials (from `docker-compose.yml`):
-- User: `postgres`, Password: `password`, DB: `earth_keeper`
-
-### 2. Environment Variables
-
-**Frontend** — create `.env` in project root:
-
-```env
-VITE_API_BASE_URL=http://localhost:8000/api
+**With Homebrew (macOS):**
+```bash
+brew services start postgresql
+createdb earth_keeper
+psql -d earth_keeper -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 ```
 
-> **Note:** No map API token is needed — MapLibre GL JS uses free OpenFreeMap tiles.
-
-**Backend** — set these in your shell or `.env` in `backend/`:
-
-```env
-DATABASE_URL=postgresql://postgres:password@localhost:5432/earth_keeper
-JWT_SECRET=your-secret-key-here
-CORS_ALLOW_ORIGINS=http://localhost:8080,http://localhost:5173
-```
-
-### 3. Run Backend
+### 2. Set up the backend
 
 ```bash
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+
+# Set environment variables
+export DATABASE_URL="postgresql://postgres:password@localhost:5432/earth_keeper"
+export JWT_SECRET="any-secret-string-for-local-dev"
+
+# Start the server (auto-creates tables on first run)
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The server auto-creates tables and PostGIS extensions on startup.
-
-### 4. Run Frontend
+### 3. Set up the frontend
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open: [http://localhost:8080](http://localhost:8080)
+The frontend starts at [http://localhost:8080](http://localhost:8080). It auto-detects that it's running locally and points API calls to `localhost:8000`.
 
-### 5. First Use
+No map API token needed — MapLibre uses free OpenFreeMap tiles.
 
-1. Navigate to `/register` to create an account
-2. Login → redirected to `/dashboard`
-3. Create a project → navigate to `/map` → draw a polygon → save as a new site
-4. Click a site → view analytics charts
+### 4. Seed sample data (optional)
+
+```bash
+python backend/seed_data.py
+```
+
+This creates 5 projects and 14 sites with real polygon coordinates across Brazil, India, Indonesia, Niger, and DR Congo.
+
+### 5. First use
+
+1. Go to `/register` and create an account
+2. Log in → lands on the dashboard with overview stats and charts
+3. Go to Projects → click a project → see its sites and analytics
+4. Go to Map View → click the pencil icon → draw a polygon → click "Finish & Save"
+5. Click any site on the map → view detailed analytics (carbon trends, NDVI, rainfall)
 
 ---
 
-## API Reference
+## API Endpoints
 
-Base URL: `http://localhost:8000/api`
+Base URL: `http://localhost:8000/api` (local) or `https://darukaa-earth-api.onrender.com/api` (production)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/auth/register` | Register a new user |
-| `POST` | `/auth/login` | OAuth2 form login → JWT token |
-| `GET` | `/projects/` | List all projects (auth required) |
-| `GET` | `/projects/{id}` | Get a project by ID |
-| `POST` | `/projects/` | Create a new project |
-| `DELETE` | `/projects/{id}` | Delete a project |
-| `GET` | `/sites/` | List all sites with GeoJSON polygons |
-| `POST` | `/sites/` | Create a site (with `polygon_geojson`) |
-| `GET` | `/sites/{id}/analytics` | Get computed monthly analytics |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/auth/register` | No | Create a new user account |
+| POST | `/auth/login` | No | OAuth2 form login, returns JWT |
+| GET | `/projects/` | Yes | List all projects |
+| POST | `/projects/` | Yes | Create a project |
+| DELETE | `/projects/{id}` | Yes | Delete a project |
+| GET | `/sites/` | Yes | List all sites (with GeoJSON polygons) |
+| POST | `/sites/` | Yes | Create a site with polygon_geojson |
+| GET | `/sites/{id}/analytics` | Yes | 12-month computed analytics |
+
+All authenticated endpoints expect `Authorization: Bearer <token>` in the request header.
 
 ---
 
 ## CI/CD Pipeline
 
-### GitHub Actions Workflow
+Defined in `.github/workflows/deploy.yml`. Triggers on every push to `main`.
 
-The pipeline is defined in `.github/workflows/deploy.yml` and triggers on every push to `main`:
+### What runs
 
 ```
-Push to main
-    │
-    ├── Job 1: frontend-lint-and-build
-    │   ├── checkout → setup Node 18 → npm ci
-    │   ├── npm run lint        (ESLint + Prettier)
-    │   ├── npm test            (Vitest unit tests)
-    │   └── npm run build       (Vite production build)
-    │
-    ├── Job 2: backend-quality
-    │   ├── checkout → setup Python 3.11
-    │   ├── pip install requirements
-    │   └── ruff check backend/app  (Python lint)
-    │
-    ├── Job 3: deploy-frontend-vercel (needs Job 1 + 2)
-    │   └── Deploy to Vercel via amondnet/vercel-action
-    │
-    └── Job 4: deploy-backend-render
-        └── Trigger Render deploy hook URL
+push to main
+  │
+  ├── frontend-lint-and-build
+  │     1. checkout repo
+  │     2. setup Node 18, npm ci
+  │     3. npm run lint     → ESLint + Prettier
+  │     4. npm test         → Vitest (13 unit tests)
+  │     5. npm run build    → Vite production bundle
+  │
+  ├── backend-quality
+  │     1. checkout repo
+  │     2. setup Python 3.11
+  │     3. pip install requirements
+  │     4. ruff check       → Python linting
+  │
+  ├── deploy-frontend (needs both jobs above to pass)
+  │     → Vercel deploy via amondnet/vercel-action
+  │
+  └── deploy-backend
+        → Trigger Render deploy hook
 ```
 
-### Required GitHub Secrets
+### Secrets you need in GitHub
 
-| Secret | Purpose |
-|--------|---------|
-| `VERCEL_TOKEN` | Vercel deployment authentication |
-| `VERCEL_ORG_ID` | Vercel organization ID |
-| `VERCEL_PROJECT_ID` | Vercel project ID |
-| `VITE_API_BASE_URL` | Backend API URL for production build |
-| `RENDER_DEPLOY_HOOK_URL` | Render.com deploy webhook |
-| `DATABASE_URL` | Production PostgreSQL connection string |
-| `JWT_SECRET` | JWT signing secret for production |
+| Secret | What it's for |
+|--------|---------------|
+| VERCEL_TOKEN | Vercel API auth |
+| VERCEL_ORG_ID | Your Vercel org |
+| VERCEL_PROJECT_ID | The Vercel project |
+| RENDER_DEPLOY_HOOK_URL | Render deploy webhook URL |
+
+### Pre-commit hooks
+
+Husky runs `lint-staged` on every commit, which:
+- Runs ESLint with `--fix` on .ts/.tsx/.js/.jsx files
+- Runs Prettier with `--write` on all staged files
+
+So code style is enforced before it even hits the remote.
 
 ---
 
-## Developer Experience & Code Quality
+## Project Structure
 
-### Pre-commit Hooks (Husky + lint-staged)
-
-Every commit automatically runs:
-
-1. **ESLint** with `--fix` on all `.ts/.tsx/.js/.jsx` files
-2. **Prettier** with `--write` on all staged files
-
-Configuration:
-- `.husky/pre-commit` → `npx lint-staged`
-- `.lintstagedrc` → ESLint fix + Prettier write rules
-- `.prettierrc` → Single quotes, trailing commas, 100 char width
-- `.eslintrc.cjs` → TypeScript + React Hooks + Prettier integration
-
-### Backend Linting
-
-- **Ruff** — configured via `backend/ruff.toml` (pyflakes, pycodestyle, import sorting)
-
-### Testing
-
-```bash
-# Frontend
-npm test          # Vitest (component + data tests)
-npm run lint      # ESLint + Prettier check
-
-# Backend
-cd backend
-ruff check app/   # Python linting
-python test_api.py  # Integration smoke tests (requires running server)
+```
+├── .github/workflows/deploy.yml   # CI/CD pipeline
+├── .husky/pre-commit              # pre-commit hook
+├── backend/
+│   ├── app/
+│   │   ├── main.py                # FastAPI app, startup migrations, CORS
+│   │   ├── models.py              # SQLAlchemy models (User, Project, Site)
+│   │   ├── schemas.py             # Pydantic request/response schemas
+│   │   ├── database.py            # DB engine + session factory
+│   │   ├── auth.py                # JWT creation + verification
+│   │   └── routers/
+│   │       ├── auth.py            # /auth/register, /auth/login
+│   │       ├── projects.py        # project CRUD
+│   │       └── sites.py           # site CRUD + analytics endpoint
+│   ├── seed_data.py               # database seeder script
+│   ├── docker-compose.yml         # PostGIS container
+│   ├── requirements.txt           # Python deps
+│   └── ruff.toml                  # Python linter config
+├── src/
+│   ├── pages/
+│   │   ├── Dashboard.tsx          # overview stats + carbon trend chart
+│   │   ├── MapPage.tsx            # MapLibre map + polygon draw tool
+│   │   ├── Projects.tsx           # project list (grid/list, filters)
+│   │   ├── ProjectDetail.tsx      # project detail + sites table + charts
+│   │   ├── Sites.tsx              # all sites list
+│   │   ├── SiteDetail.tsx         # site analytics (4 charts)
+│   │   ├── Analytics.tsx          # portfolio-level analytics
+│   │   ├── Login.tsx / Register.tsx
+│   │   └── Settings.tsx           # user settings
+│   ├── components/
+│   │   ├── layout/                # sidebar, topbar, mobile nav
+│   │   └── ui/                    # shadcn/ui components + StatCard, StatusBadge
+│   ├── store/authStore.ts         # Zustand auth state
+│   ├── hooks/useApi.ts            # React Query hooks (useProjects, useSites, etc)
+│   ├── services/api.ts            # Axios instance with auto-auth
+│   └── data/                      # TypeScript types + mock data for tests
+├── vercel.json                    # Vercel SPA rewrite rules
+├── render.yaml                    # Render deployment blueprint
+└── package.json
 ```
 
 ---
@@ -266,59 +281,15 @@ python test_api.py  # Integration smoke tests (requires running server)
 
 ### Frontend → Vercel
 
-- `vercel.json` configures SPA rewrites (`/(.*) → /index.html`)
-- Auto-deployed via GitHub Actions on push to `main`
+Import the GitHub repo on [vercel.com](https://vercel.com). Vercel auto-detects Vite and builds with `npm run build`. The `vercel.json` handles SPA routing (all paths → `index.html`).
 
-### Backend → Render.com
+The frontend auto-detects production vs development and uses the correct API URL — no env var needed unless you want to override it.
 
-- `render.yaml` defines the infrastructure blueprint (FastAPI web service + PostgreSQL with PostGIS)
-- Auto-deployed via deploy hook or native GitHub integration
+### Backend → Render
 
----
+On [render.com](https://render.com), create a new Web Service pointing to the `backend/` directory. Or use "New → Blueprint" which reads `render.yaml` and sets up both the web service and PostgreSQL database automatically.
 
-## Project Structure
-
-```
-├── .github/workflows/deploy.yml   # CI/CD pipeline
-├── .husky/pre-commit              # Git pre-commit hook
-├── backend/
-│   ├── app/
-│   │   ├── main.py                # FastAPI app + startup migrations
-│   │   ├── models.py              # SQLAlchemy models (User, Project, Site)
-│   │   ├── schemas.py             # Pydantic request/response schemas
-│   │   ├── database.py            # PostgreSQL engine + session
-│   │   ├── auth.py                # JWT + bcrypt utilities
-│   │   └── routers/               # API route handlers
-│   │       ├── auth.py            # Register + Login
-│   │       ├── projects.py        # Project CRUD
-│   │       └── sites.py           # Site CRUD + analytics
-│   ├── docker-compose.yml         # PostGIS database container
-│   ├── requirements.txt           # Python dependencies
-│   └── ruff.toml                  # Python linter config
-├── src/
-│   ├── pages/                     # Route pages
-│   │   ├── Dashboard.tsx          # Overview with stat cards + charts
-│   │   ├── MapPage.tsx            # Mapbox GL JS interactive map
-│   │   ├── Projects.tsx           # Project list with filters
-│   │   ├── ProjectDetail.tsx      # Project analytics + sites table
-│   │   ├── Sites.tsx              # Site list view
-│   │   ├── SiteDetail.tsx         # Site analytics with 4 charts
-│   │   ├── Analytics.tsx          # Portfolio-level analytics
-│   │   ├── Settings.tsx           # User, security, notification settings
-│   │   ├── Login.tsx              # Authentication
-│   │   └── Register.tsx           # User registration
-│   ├── components/
-│   │   ├── layout/                # Shell components
-│   │   │   ├── DashboardLayout.tsx
-│   │   │   ├── AppSidebar.tsx
-│   │   │   ├── Topbar.tsx
-│   │   │   └── MobileNav.tsx
-│   │   └── ui/                    # shadcn/ui + custom components
-│   ├── store/authStore.ts         # Zustand auth state
-│   ├── hooks/useApi.ts            # React Query data hooks
-│   ├── services/api.ts            # Axios HTTP client
-│   └── data/                      # Type definitions + mock data
-├── vercel.json                    # Vercel SPA routing config
-├── render.yaml                    # Render.com deployment blueprint
-└── package.json
-```
+Required env vars on Render:
+- `DATABASE_URL` — the PostgreSQL connection string (use the External URL)
+- `JWT_SECRET` — any random string
+- `CORS_ALLOW_ORIGINS` — your Vercel domain (e.g. `https://earth-fawn-three.vercel.app`)

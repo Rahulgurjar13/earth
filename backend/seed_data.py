@@ -8,7 +8,8 @@ Run after the backend is already running:
 import requests
 import sys
 
-BASE = "http://localhost:8000/api"
+# Usage: python3 seed_data.py [base_url]
+BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000/api"
 
 # ── 1. Register + Login ─────────────────────────────────────────
 print("→ Registering seed user...")
