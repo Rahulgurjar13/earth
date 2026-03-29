@@ -98,10 +98,12 @@ const MapPage = () => {
 
     map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
-    // Click handler for draw mode
+    // Click handler for draw mode — fires BEFORE layer-specific handlers
     map.on('click', e => {
       const ds = drawStateRef.current;
       if (!ds.active) return;
+      // Prevent the click from reaching the sites-fill layer
+      e.preventDefault();
       const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       setDrawState(prev => ({ ...prev, points: [...prev.points, pt] }));
     });
@@ -285,6 +287,8 @@ const MapPage = () => {
     });
 
     map.on('click', 'sites-fill', e => {
+      // Ignore site clicks while in draw mode
+      if (drawStateRef.current.active) return;
       if (e.features && e.features.length > 0) {
         const id = e.features[0].properties?.id;
         if (id !== undefined) setSelectedSite(id);
@@ -322,8 +326,31 @@ const MapPage = () => {
 
   const startDraw = () => {
     setDrawState({ active: true, points: [] });
+    setSelectedSite(null);
     const map = mapRef.current;
-    if (map) map.getCanvas().style.cursor = 'crosshair';
+    if (map) {
+      map.getCanvas().style.cursor = 'crosshair';
+      map.doubleClickZoom.disable();
+    }
+  };
+
+  const finishDraw = () => {
+    const ds = drawStateRef.current;
+    if (ds.points.length < 3) return;
+    const closed = [...ds.points, ds.points[0]];
+    const geojson = { type: 'Polygon', coordinates: [closed] };
+    setNewSitePolygon(geojson);
+    setDrawState({ active: false, points: [] });
+    setShowNewSiteModal(true);
+    const map = mapRef.current;
+    if (map) {
+      map.getCanvas().style.cursor = '';
+      map.doubleClickZoom.enable();
+      if (map.getLayer('draw-preview-line')) map.removeLayer('draw-preview-line');
+      if (map.getLayer('draw-preview-fill')) map.removeLayer('draw-preview-fill');
+      if (map.getLayer('draw-preview-points')) map.removeLayer('draw-preview-points');
+      if (map.getSource('draw-preview')) map.removeSource('draw-preview');
+    }
   };
 
   const cancelDraw = () => {
@@ -331,6 +358,7 @@ const MapPage = () => {
     const map = mapRef.current;
     if (map) {
       map.getCanvas().style.cursor = '';
+      map.doubleClickZoom.enable();
       if (map.getLayer('draw-preview-line')) map.removeLayer('draw-preview-line');
       if (map.getLayer('draw-preview-fill')) map.removeLayer('draw-preview-fill');
       if (map.getLayer('draw-preview-points')) map.removeLayer('draw-preview-points');
@@ -398,10 +426,18 @@ const MapPage = () => {
 
       {/* Draw mode banner */}
       {drawState.active && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1001] px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium flex items-center gap-3 shadow-lg">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1001] px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium flex items-center gap-3 shadow-lg">
           <Pencil className="w-4 h-4" />
-          Click to add points · Double-click to finish ({drawState.points.length} pts)
-          <button onClick={cancelDraw} className="ml-2 underline text-primary-foreground/80">
+          <span>Click to add points ({drawState.points.length} pts)</span>
+          {drawState.points.length >= 3 && (
+            <button
+              onClick={finishDraw}
+              className="px-3 py-1 rounded-md bg-white text-primary text-xs font-bold hover:bg-white/90 transition-colors"
+            >
+              ✓ Finish & Save
+            </button>
+          )}
+          <button onClick={cancelDraw} className="underline text-primary-foreground/80 text-xs">
             Cancel
           </button>
         </div>

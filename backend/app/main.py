@@ -9,9 +9,15 @@ from app.routers import auth, projects, sites
 try:
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+except Exception as e:
+    # On managed databases (e.g. Render) PostGIS may already be enabled
+    # or require admin permissions — this is safe to skip.
+    print(f"PostGIS extension note: {e}")
+
+try:
     Base.metadata.create_all(bind=engine)
 except Exception as e:
-    print(f"Warning on startup table/extension creation: {e}")
+    print(f"Warning on startup table creation: {e}")
 
 # Lightweight schema evolution for local dev.
 # This avoids breaking the UI when new columns are added to SQLAlchemy models.
@@ -36,9 +42,12 @@ try:
 except Exception as e:
     print(f"Warning on startup migration: {e}")
 
-app = FastAPI(title="Earth Keeper Backend", version="1.0.0", root_path="/api")
+app = FastAPI(title="Darukaa.Earth API", version="1.0.0")
 
-# Configure CORS for the frontend development server
+# API prefix — defaults to "/api" for both local and production
+API_PREFIX = os.environ.get("API_PREFIX", "/api")
+
+# Configure CORS for the frontend
 default_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -48,10 +57,10 @@ default_origins = [
 ]
 
 cors_origins_env = os.environ.get("CORS_ALLOW_ORIGINS")
-allow_origins = default_origins
 if cors_origins_env:
-    # Comma-separated list of origins, e.g. "https://example.com,https://admin.example.com"
     allow_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+else:
+    allow_origins = default_origins
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,10 +70,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(projects.router)
-app.include_router(sites.router)
+# Mount routers under the API prefix
+app.include_router(auth.router, prefix=API_PREFIX)
+app.include_router(projects.router, prefix=API_PREFIX)
+app.include_router(sites.router, prefix=API_PREFIX)
 
 @app.get("/")
-def read_root():
-    return {"message": "Welcome to the Earth Keeper API!"}
+def health_check():
+    return {"status": "healthy", "service": "Darukaa.Earth API"}
+
+@app.get(API_PREFIX + "/")
+def api_root():
+    return {"message": "Welcome to the Darukaa.Earth API!"}

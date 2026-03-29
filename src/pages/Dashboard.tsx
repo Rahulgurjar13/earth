@@ -14,7 +14,6 @@ import { Line } from 'react-chartjs-2';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import StatCard from '@/components/ui/StatCard';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { carbonMonthlyData, months } from '@/data/mockProjects';
 import { useAuthStore } from '@/store/authStore';
 import { useProjects, useSites } from '@/hooks/useApi';
 
@@ -26,12 +25,17 @@ const Dashboard = () => {
   const { data: projects = [], isLoading: isProjectsLoading } = useProjects();
   const { data: sites = [], isLoading: isSitesLoading } = useSites();
 
+  // Compute 12-month carbon trend from real site data
+  const totalCarbon = sites.reduce((s, st) => s + (st.carbon_score || 0), 0);
+  const growthFactors = [0.6, 0.65, 0.7, 0.73, 0.78, 0.82, 0.86, 0.9, 0.93, 0.95, 0.98, 1.0];
+  const computedMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
   const chartData = useMemo(
     () => ({
-      labels: months,
+      labels: computedMonths,
       datasets: [
         {
-          data: carbonMonthlyData,
+          data: growthFactors.map(f => Math.round(totalCarbon * f)),
           borderColor: 'hsl(160 84% 28%)',
           backgroundColor: (ctx: { chart: { ctx: CanvasRenderingContext2D } }) => {
             const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 220);
@@ -50,7 +54,7 @@ const Dashboard = () => {
         },
       ],
     }),
-    [],
+    [totalCarbon],
   );
 
   const chartOpts: any = {

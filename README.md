@@ -39,7 +39,20 @@ A full-stack geospatial analytics dashboard for managing carbon sequestration an
 | **Mock Data** | Server-generated analytics derived from stored base scores | Avoids needing a separate time-series store for the demo; realistic trends computed from `carbon_score`, `biodiversity_score`. |
 | **CI/CD** | GitHub Actions → Vercel (frontend) + Render (backend) | Free tier platforms; automatic deployment on push to `main`. |
 
----
+### Key Design Trade-offs
+
+1. **MapLibre GL JS vs Mapbox GL JS**: MapLibre is the open-source fork of Mapbox GL JS, sharing the same rendering engine, style spec, and API. We chose MapLibre because:
+   - Mapbox GL JS v2+ requires a paid API token even for development. MapLibre is 100% free with no API key.
+   - Free tile providers (OpenFreeMap) mean zero infrastructure cost.
+   - The code is a drop-in replacement — migrating to Mapbox GL JS only requires swapping the import and adding a token.
+
+2. **Chart.js vs Highcharts**: The spec allows either. Chart.js is MIT-licensed (free for commercial use), lightweight (8KB gzipped for the modules used), and has excellent React integration via `react-chartjs-2`. Highcharts requires a paid license for commercial use.
+
+3. **Zustand + React Query vs Redux**: Separating client-only state (auth) from server state (projects, sites) avoids the bolerplate of Redux. React Query gives automatic caching, background refetch, and loading/error states for free.
+
+4. **Custom Draw Tool vs @mapbox/mapbox-gl-draw**: A lightweight native draw tool (~40 lines of logic) avoids the 200KB+ `@mapbox/mapbox-gl-draw` dependency and provides a simpler UX with an explicit "Finish & Save" button instead of complex mode toggling.
+
+5. **Server-computed Analytics vs Time-series DB**: The `/sites/{id}/analytics` endpoint derives 12-month trends from stored base scores. This avoids needing InfluxDB/TimescaleDB for the demo while still showing realistic visualizations. In production, this would be replaced with actual time-series data.
 
 ## Database Schema
 
