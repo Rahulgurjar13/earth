@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+const PROD_API = 'https://darukaa-earth-api.onrender.com/api';
+const DEV_API = 'http://localhost:8000/api';
+
+const baseURL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
+  (window.location.hostname === 'localhost' ? DEV_API : PROD_API);
+
 const api = axios.create({
-  baseURL: (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000/api',
+  baseURL,
   headers: { 'Content-Type': 'application/json' },
 });
 
