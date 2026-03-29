@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, User, Building, MapPin, BarChart3, Leaf } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, Globe, TrendingUp, Shield } from 'lucide-react';
 import Logo from '@/components/layout/Logo';
 import { useAuthStore } from '@/store/authStore';
 
 type RegisterForm = {
   name: string;
   email: string;
-  org: string;
   password: string;
   confirm: string;
 };
@@ -16,211 +15,192 @@ const Register = () => {
   const [form, setForm] = useState<RegisterForm>({
     name: '',
     email: '',
-    org: '',
     password: '',
     confirm: '',
   });
   const [showPw, setShowPw] = useState(false);
-  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const register = useAuthStore(s => s.register);
 
-  const strength =
-    form.password.length === 0
-      ? 0
-      : form.password.length < 6
-        ? 1
-        : form.password.length < 10
-          ? 2
-          : 3;
-  const strengthColors = ['', 'bg-destructive', 'bg-warning', 'bg-primary'];
-  const strengthLabels = ['', 'Weak', 'Medium', 'Strong'];
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.password) {
-      setError('Please fill required fields');
+      setError('Please fill in all fields');
       return;
     }
     if (form.password !== form.confirm) {
       setError('Passwords do not match');
       return;
     }
-    if (!agreed) {
-      setError('Please agree to the terms');
-      return;
-    }
     setLoading(true);
     const ok = await register(form.name, form.email, form.password);
     setLoading(false);
     if (ok) navigate('/dashboard');
-    else setError('Registration failed');
+    else setError('Registration failed. Email may already be in use.');
   };
 
   const up = (k: keyof RegisterForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(p => ({ ...p, [k]: e.target.value }));
 
-  const fields = [
-    { key: 'name', icon: User, placeholder: 'Full Name', type: 'text' as const },
-    { key: 'email', icon: Mail, placeholder: 'Work Email', type: 'email' as const },
-    { key: 'org', icon: Building, placeholder: 'Organization (optional)', type: 'text' as const },
-  ] as const;
-
   return (
-    <div className="min-h-screen flex bg-background">
-      {/* Left — same as login */}
-      <div className="hidden lg:flex lg:w-[55%] flex-col justify-between p-10 relative overflow-hidden">
-        <Logo />
-        <div className="max-w-lg mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20 mb-6">
-            🌿 Climate Intelligence Platform
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Left panel */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 text-white relative overflow-hidden"
+        style={{ background: 'linear-gradient(160deg, #166534 0%, #1a7a3a 40%, #15803d 100%)' }}>
+
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white/5" />
+        <div className="absolute -bottom-32 -left-20 w-80 h-80 rounded-full bg-white/5" />
+        <div className="absolute top-1/3 right-1/4 w-40 h-40 rounded-full bg-white/[0.03]" />
+
+        <div className="relative z-10 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+            <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
+              <path d="M8 2C8 2 3.5 6.5 3.5 10C3.5 12.5 5.5 14.5 8 14.5C10.5 14.5 12.5 12.5 12.5 10C12.5 6.5 8 2 8 2Z" fill="white" />
+            </svg>
           </div>
-          <h1 className="text-4xl font-bold heading-tight text-foreground mb-4">
-            Join the Mission
-          </h1>
-          <p className="text-muted-foreground text-[15px] leading-relaxed mb-8 max-w-md mx-auto">
-            Start monitoring and managing carbon and biodiversity projects at scale.
+          <span className="text-lg font-semibold tracking-tight text-white">Darukaa<span className="font-normal opacity-70">.earth</span></span>
+        </div>
+
+        <div className="relative z-10 max-w-lg">
+          <p className="text-white/60 text-[11px] font-semibold uppercase tracking-[0.2em] mb-5">
+            Built on Science, Designed for Decisions
           </p>
-          <div className="flex flex-wrap justify-center gap-2">
+          <h1 className="text-[2.25rem] font-bold leading-[1.15] mb-5">
+            Integrate nature in
+            <br />
+            your business decisions
+          </h1>
+          <p className="text-white/70 text-[15px] leading-relaxed mb-10 max-w-md">
+            Create projects, map conservation sites, and track environmental KPIs with geospatial precision.
+          </p>
+
+          <div className="grid grid-cols-3 gap-3">
             {[
-              { icon: MapPin, label: 'Geospatial Analysis' },
-              { icon: BarChart3, label: 'Carbon Tracking' },
-              { icon: Leaf, label: 'Biodiversity Index' },
-            ].map(({ icon: Icon, label }) => (
-              <span
-                key={label}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground"
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </span>
+              { icon: Globe, label: 'Biodiversity Intelligence', desc: 'AI-driven monitoring' },
+              { icon: TrendingUp, label: 'Climate Intelligence', desc: 'Carbon sequestration' },
+              { icon: Shield, label: 'Nature Finance', desc: 'Verified credits' },
+            ].map(({ icon: Icon, label, desc }) => (
+              <div key={label}
+                className="rounded-lg p-3.5 bg-white/[0.08] border border-white/[0.08] backdrop-blur-sm">
+                <Icon className="w-5 h-5 text-white/80 mb-2.5" />
+                <p className="text-xs font-semibold text-white/90 mb-0.5">{label}</p>
+                <p className="text-[11px] text-white/50">{desc}</p>
+              </div>
             ))}
           </div>
         </div>
-        <div className="text-xs text-muted-foreground text-center">© 2025 Darukaa.Earth</div>
+
+        <div className="relative z-10 text-xs text-white/30">
+          © 2025 Darukaa.Earth
+        </div>
       </div>
 
-      {/* Right */}
-      <div
-        className="w-full lg:w-[45%] flex flex-col items-center justify-center px-6 border-l"
-        style={{ background: 'hsl(120 20% 7%)', borderColor: 'rgba(255,255,255,0.04)' }}
-      >
-        <div className="lg:hidden mb-8">
+      {/* Right panel */}
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center px-6 sm:px-16 bg-white">
+        <div className="lg:hidden mb-10">
           <Logo />
         </div>
-        <div className="w-full max-w-[380px]">
-          <h2 className="text-2xl font-semibold heading-tight text-foreground mb-1">
-            Create your account
-          </h2>
-          <p className="text-sm text-muted-foreground mb-6">Start your climate impact journey</p>
+
+        <div className="w-full max-w-sm">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Create your account</h2>
+          <p className="text-sm text-gray-500 mb-8">Get started with Darukaa.Earth</p>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg text-sm bg-destructive/10 text-destructive border border-destructive/20">
+            <div className="mb-5 p-3 rounded-lg text-sm bg-red-50 text-red-600 border border-red-200">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3">
-            {fields.map(({ key, icon: Icon, placeholder, type }) => (
-              <div key={key} className="relative">
-                <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-gray-400" />
                 <input
-                  type={type}
-                  placeholder={placeholder}
-                  value={form[key]}
-                  onChange={up(key)}
-                  className="w-full h-11 pl-10 pr-4 rounded-lg text-sm bg-background border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
-                  style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+                  type="text"
+                  placeholder="Your full name"
+                  value={form.name}
+                  onChange={up('name')}
+                  className="w-full h-11 pl-11 pr-4 rounded-lg text-sm bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#1a7a3a] focus:ring-2 focus:ring-[#1a7a3a]/10 transition-all"
                 />
               </div>
-            ))}
-
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type={showPw ? 'text' : 'password'}
-                placeholder="Password"
-                value={form.password}
-                onChange={up('password')}
-                className="w-full h-11 pl-10 pr-10 rounded-lg text-sm bg-background border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
-                style={{ borderColor: 'rgba(255,255,255,0.08)' }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
             </div>
 
-            {form.password && (
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1 flex-1">
-                  {[1, 2, 3].map(i => (
-                    <div
-                      key={i}
-                      className={`h-1 flex-1 rounded-full transition-colors ${i <= strength ? strengthColors[strength] : 'bg-muted/30'}`}
-                    />
-                  ))}
-                </div>
-                <span className="text-[11px] text-muted-foreground">
-                  {strengthLabels[strength]}
-                </span>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-gray-400" />
+                <input
+                  type="email"
+                  placeholder="you@company.com"
+                  value={form.email}
+                  onChange={up('email')}
+                  className="w-full h-11 pl-11 pr-4 rounded-lg text-sm bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#1a7a3a] focus:ring-2 focus:ring-[#1a7a3a]/10 transition-all"
+                />
               </div>
-            )}
-
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="password"
-                placeholder="Confirm Password"
-                value={form.confirm}
-                onChange={up('confirm')}
-                className="w-full h-11 pl-10 pr-4 rounded-lg text-sm bg-background border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all"
-                style={{ borderColor: 'rgba(255,255,255,0.08)' }}
-              />
             </div>
 
-            <label className="flex items-start gap-2 cursor-pointer py-1">
-              <input
-                type="checkbox"
-                checked={agreed}
-                onChange={() => setAgreed(!agreed)}
-                className="mt-0.5 accent-primary"
-              />
-              <span className="text-xs text-muted-foreground">
-                I agree to the{' '}
-                <button type="button" className="text-primary hover:underline">
-                  Terms of Service
-                </button>{' '}
-                and{' '}
-                <button type="button" className="text-primary hover:underline">
-                  Privacy Policy
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-gray-400" />
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  placeholder="Min 6 characters"
+                  value={form.password}
+                  onChange={up('password')}
+                  className="w-full h-11 pl-11 pr-11 rounded-lg text-sm bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#1a7a3a] focus:ring-2 focus:ring-[#1a7a3a]/10 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPw ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
                 </button>
-              </span>
-            </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-gray-400" />
+                <input
+                  type="password"
+                  placeholder="Re-enter your password"
+                  value={form.confirm}
+                  onChange={up('confirm')}
+                  className="w-full h-11 pl-11 pr-4 rounded-lg text-sm bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#1a7a3a] focus:ring-2 focus:ring-[#1a7a3a]/10 transition-all"
+                />
+              </div>
+            </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-60"
+              className="w-full h-11 rounded-lg bg-[#1a7a3a] text-white font-semibold text-sm shadow-sm hover:bg-[#15662f] active:bg-[#125528] transition-colors disabled:opacity-60 mt-1"
             >
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
+          <div className="flex items-center gap-4 my-7">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400 font-medium">OR</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <p className="text-center text-sm text-gray-600">
             Already have an account?{' '}
-            <Link to="/login" className="text-primary hover:underline">
+            <Link to="/login" className="text-[#1a7a3a] font-semibold hover:underline">
               Sign in →
             </Link>
+          </p>
+
+          <p className="text-center text-xs text-gray-400 mt-8">
+            Trusted by leading environmental research institutes across the globe
           </p>
         </div>
       </div>
